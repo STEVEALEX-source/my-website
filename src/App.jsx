@@ -90,7 +90,7 @@ const PixelCookie = ({ size = 96 }) => (
   </svg>
 );
 
-const TiltCard = ({ children, className, style, intensity = 12, onMouseEnter, onMouseLeave }) => {
+const TiltCard = ({ children, className, style, intensity = 12 }) => {
   const ref = useRef(null);
   const handleMouseMove = (e) => {
     if (!ref.current) return;
@@ -106,10 +106,9 @@ const TiltCard = ({ children, className, style, intensity = 12, onMouseEnter, on
   const handleMouseLeave = () => {
     if (!ref.current) return;
     ref.current.style.transform = `perspective(800px) rotateX(0deg) rotateY(0deg) translateZ(0px)`;
-    onMouseLeave && onMouseLeave();
   };
   return (
-    <div ref={ref} className={className} style={style} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} onMouseEnter={onMouseEnter}>
+    <div ref={ref} className={className} style={style} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
       {children}
     </div>
   );
@@ -123,26 +122,8 @@ const TerminalWidget = ({ onClose }) => {
   const [showCookie, setShowCookie] = useState(false);
   const dragRef = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
   const termRef = useRef(null);
-  const timersRef = useRef([]);
-
-  const clampPosition = useCallback((x, y) => {
-    const termWidth = termRef.current ? termRef.current.offsetWidth : 520;
-    const termHeight = termRef.current ? termRef.current.offsetHeight : 400;
-    const maxX = Math.max(20, window.innerWidth - termWidth - 20);
-    const maxY = Math.max(20, window.innerHeight - termHeight - 20);
-    return {
-      x: Math.max(20, Math.min(x, maxX)),
-      y: Math.max(20, Math.min(y, maxY))
-    };
-  }, []);
-
-  const clearTimers = () => {
-    timersRef.current.forEach(t => clearTimeout(t));
-    timersRef.current = [];
-  };
 
   const runCommand = () => {
-    clearTimers();
     setStage('running');
     setOutput([]);
     const lines = [
@@ -192,51 +173,40 @@ const TerminalWidget = ({ onClose }) => {
       { text: 'but here, have a cookie:', delay: 15500, type: 'joke' },
     ];
     lines.forEach((line) => {
-      const t = setTimeout(() => {
+      setTimeout(() => {
         setOutput(prev => [...prev, line]);
         if (line.type === 'critical') {
           setGlitch(true);
-          const t2 = setTimeout(() => setGlitch(false), 150);
-          timersRef.current.push(t2);
+          setTimeout(() => setGlitch(false), 150);
         }
         if (line.type === 'joke') {
           setShowCookie(true);
         }
       }, line.delay);
-      timersRef.current.push(t);
     });
-    const t3 = setTimeout(() => setStage('done'), 16000);
-    timersRef.current.push(t3);
+    setTimeout(() => setStage('done'), 16000);
   };
 
   const reset = () => {
-    clearTimers();
     setStage('idle');
     setOutput([]);
     setShowCookie(false);
-    setGlitch(false);
   };
-
-  useEffect(() => {
-    return () => clearTimers();
-  }, []);
 
   useEffect(() => {
     const handleMove = (e) => {
       if (!dragRef.current.isDragging) return;
-      e.preventDefault();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const pos = clampPosition(
-        clientX - dragRef.current.offsetX,
-        clientY - dragRef.current.offsetY
-      );
-      setTerminalPos(pos);
+      setTerminalPos({
+        x: clientX - dragRef.current.offsetX,
+        y: clientY - dragRef.current.offsetY
+      });
     };
     const handleUp = () => { dragRef.current.isDragging = false; };
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
-    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchmove', handleMove);
     window.addEventListener('touchend', handleUp);
     return () => {
       window.removeEventListener('mousemove', handleMove);
@@ -244,15 +214,7 @@ const TerminalWidget = ({ onClose }) => {
       window.removeEventListener('touchmove', handleMove);
       window.removeEventListener('touchend', handleUp);
     };
-  }, [clampPosition]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setTerminalPos(prev => clampPosition(prev.x, prev.y));
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [clampPosition]);
+  }, []);
 
   const handleDragStart = (e) => {
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -263,12 +225,6 @@ const TerminalWidget = ({ onClose }) => {
       offsetX: clientX - rect.left,
       offsetY: clientY - rect.top
     };
-  };
-
-  const handleClose = (e) => {
-    e.stopPropagation();
-    clearTimers();
-    onClose();
   };
 
   const getLineColor = (type) => {
@@ -302,7 +258,7 @@ const TerminalWidget = ({ onClose }) => {
           onTouchStart={handleDragStart}
         >
           <div className="terminal-dots">
-            <span className="dot dot-red" onClick={handleClose} role="button" aria-label="Close terminal"></span>
+            <span className="dot dot-red" onClick={onClose}></span>
             <span className="dot dot-yellow"></span>
             <span className="dot dot-green"></span>
           </div>
@@ -386,12 +342,8 @@ export default function Portfolio() {
   const [typedBio, setTypedBio] = useState("");
   const [voxels, setVoxels] = useState([]);
   const [showTerminal, setShowTerminal] = useState(false);
-  const [cursorVisible, setCursorVisible] = useState(false);
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const cursorRef = useRef(null);
-  const cursorPosRef = useRef({ x: -100, y: -100 });
-  const targetPosRef = useRef({ x: -100, y: -100 });
-  const rafRef = useRef(null);
   const containerRef = useRef(null);
 
   const fullBio = "hey, i'm riz. i build stuff on the internet — websites, apps, weird interactive things. i like clean code, chaotic animations, and the feeling when something finally works at 3am. currently turning caffeine into pixels.";
@@ -403,9 +355,6 @@ export default function Portfolio() {
   ];
 
   useEffect(() => {
-    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    setIsTouchDevice(isTouch);
-
     const newVoxels = Array.from({ length: 18 }, (_, i) => {
       const depth = Math.random();
       return {
@@ -436,26 +385,11 @@ export default function Portfolio() {
   }, []);
 
   useEffect(() => {
-    if (isTouchDevice) return;
-
-    const animateCursor = () => {
-      const current = cursorPosRef.current;
-      const target = targetPosRef.current;
-      const lerp = 0.25;
-      current.x += (target.x - current.x) * lerp;
-      current.y += (target.y - current.y) * lerp;
-
-      if (cursorRef.current) {
-        cursorRef.current.style.transform = `translate3d(${current.x - 12}px, ${current.y - 12}px, 0)`;
-      }
-      rafRef.current = requestAnimationFrame(animateCursor);
-    };
-    rafRef.current = requestAnimationFrame(animateCursor);
-
     const handleMouseMove = (e) => {
-      targetPosRef.current = { x: e.clientX, y: e.clientY };
-      if (!cursorVisible) setCursorVisible(true);
-
+      setMousePos({ x: e.clientX, y: e.clientY });
+      if (cursorRef.current) {
+        cursorRef.current.style.transform = `translate3d(${e.clientX - 12}px, ${e.clientY - 12}px, 0)`;
+      }
       if (containerRef.current) {
         const x = (e.clientX / window.innerWidth - 0.5) * 2;
         const y = (e.clientY / window.innerHeight - 0.5) * 2;
@@ -463,21 +397,9 @@ export default function Portfolio() {
         containerRef.current.style.setProperty('--my', y);
       }
     };
-
-    const handleMouseLeave = () => setCursorVisible(false);
-    const handleMouseEnter = () => setCursorVisible(true);
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseleave', handleMouseLeave);
-    document.addEventListener('mouseenter', handleMouseEnter);
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseleave', handleMouseLeave);
-      document.removeEventListener('mouseenter', handleMouseEnter);
-    };
-  }, [isTouchDevice, cursorVisible]);
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   const handleViewChange = useCallback((newView) => {
     if (newView === view) return;
@@ -514,17 +436,9 @@ export default function Portfolio() {
     }
   }, []);
 
-  const handleHoverEnter = () => {
-    if (cursorRef.current) cursorRef.current.classList.add('hovering');
-  };
-  const handleHoverLeave = () => {
-    if (cursorRef.current) cursorRef.current.classList.remove('hovering');
-  };
-
   return (
     <div
       ref={containerRef}
-      className={isTouchDevice ? 'touch-device' : ''}
       style={{
         background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d12 70%, #050508 100%)',
         color: '#ffffff',
@@ -535,16 +449,15 @@ export default function Portfolio() {
         '--my': 0,
         imageRendering: 'pixelated',
         perspective: '1500px',
-        perspectiveOrigin: '50% 50%',
-        cursor: isTouchDevice ? 'auto' : 'none'
+        perspectiveOrigin: '50% 50%'
       }}
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; image-rendering: pixelated; }
         body { background: #0d0d12; color: #ffffff; overflow-x: hidden; -webkit-font-smoothing: none; }
-        a, button { cursor: ${isTouchDevice ? 'pointer' : 'none'}; }
 
+        /* ===== DEEP 3D VOXEL BACKGROUND ===== */
         .voxel-bg {
           position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
           transform-style: preserve-3d;
@@ -641,6 +554,8 @@ export default function Portfolio() {
               rotateZ(5deg);
           }
         }
+
+        /* 3D GRID FLOOR */
         .pixel-grid {
           position: fixed; 
           top: 50%; left: 0; 
@@ -663,29 +578,43 @@ export default function Portfolio() {
           0% { background-position: 0 0; }
           100% { background-position: 0 60px; }
         }
+
+        /* CUSTOM CURSOR */
         .custom-cursor {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 24px;
-          height: 24px;
-          background: #fff;
-          pointer-events: none;
-          z-index: 99999;
-          transform: translate3d(-100px, -100px, 0);
-          will-change: transform;
+          position: fixed; width: 24px; height: 24px; background: #fff;
+          pointer-events: none; z-index: 9999; mix-blend-mode: difference;
+          transform: translate3d(-100px, -100px, 0); will-change: transform;
+          transition: width 0.2s, height 0.2s; 
           clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 50%, 25% 50%, 25% 25%, 75% 25%, 75% 75%, 25% 75%, 25% 50%, 0 50%);
-          box-shadow: 0 0 12px rgba(255,255,255,0.6);
-          opacity: 0;
-          transition: width 0.15s, height 0.15s, background 0.15s, opacity 0.2s;
+          box-shadow: 0 0 20px rgba(255,255,255,0.5);
         }
-        .custom-cursor.visible { opacity: 1; }
-        .custom-cursor.hovering {
-          width: 40px;
-          height: 40px;
-          background: #7F77DD;
-          box-shadow: 0 0 20px rgba(127, 119, 221, 0.8);
+        .custom-cursor.hovering { width: 40px; height: 40px; background: #7F77DD; }
+
+        /* VIEW CONTAINER */
+        .view-container {
+          position: relative; z-index: 10; width: 100%; min-height: 100vh;
+          display: flex; align-items: center; justify-content: center; padding: 2rem;
+          perspective: 1500px;
+          transform-style: preserve-3d;
         }
+        .view-content {
+          width: 100%; max-width: 900px; transform-style: preserve-3d;
+          transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .view-content.exiting { 
+          opacity: 0; 
+          transform: perspective(1000px) rotateY(-25deg) translateZ(-200px) translateX(-100px); 
+        }
+        .view-content.entering { 
+          opacity: 0; 
+          transform: perspective(1000px) rotateY(25deg) translateZ(-200px) translateX(100px); 
+        }
+        .view-content.active { 
+          opacity: 1; 
+          transform: perspective(1000px) rotateY(0deg) translateZ(0); 
+        }
+
+        /* 3D PIXEL CARD */
         .pixel-card {
           background: #1a1a24;
           border: 4px solid #ffffff;
@@ -720,6 +649,8 @@ export default function Portfolio() {
           background: linear-gradient(to bottom, rgba(255,255,255,0.3), transparent);
           pointer-events: none;
         }
+
+        /* ===== 3D HERO LABEL - DEEP EXTRUSION ===== */
         .hero-label {
           font-family: 'Press Start 2P', cursive; font-size: 0.7rem; color: #7F77DD;
           letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2rem;
@@ -731,7 +662,9 @@ export default function Portfolio() {
             3px 3px 0 #3a2f8f,
             4px 4px 0 #2a1f6f,
             5px 5px 0 #1a0f4f,
-            6px 6px 15px rgba(127, 119, 221, 0.8);
+            6px 6px 0 #0a052f,
+            7px 7px 0 #000,
+            8px 8px 15px rgba(127, 119, 221, 0.7);
         }
         .hero-label::before { 
           content: ''; width: 30px; height: 4px; background: #7F77DD; 
@@ -740,8 +673,13 @@ export default function Portfolio() {
             3px 3px 0 #534AB7,
             4px 4px 0 #3a2f8f,
             5px 5px 0 #2a1f6f,
-            6px 6px 10px rgba(0,0,0,0.6);
+            6px 6px 0 #1a0f4f,
+            7px 7px 0 #0a052f,
+            8px 8px 0 #000,
+            10px 10px 15px rgba(0,0,0,0.7);
         }
+
+        /* ===== 3D HERO TITLE - MASSIVE DEPTH ===== */
         .hero-title {
           font-family: 'Press Start 2P', cursive;
           font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.4; margin-bottom: 2rem;
@@ -750,14 +688,22 @@ export default function Portfolio() {
             1px 1px 0 #000,
             2px 2px 0 #1a1a2e,
             3px 3px 0 #000,
-            4px 4px 0 rgba(127, 119, 221, 0.7),
-            5px 5px 0 rgba(127, 119, 221, 0.6),
-            6px 6px 0 rgba(127, 119, 221, 0.5),
-            7px 7px 0 rgba(127, 119, 221, 0.4),
-            8px 8px 0 rgba(127, 119, 221, 0.3),
-            9px 9px 0 rgba(127, 119, 221, 0.2),
-            10px 10px 0 rgba(127, 119, 221, 0.1),
-            12px 12px 30px rgba(0,0,0,0.8);
+            4px 4px 0 rgba(127, 119, 221, 0.8),
+            5px 5px 0 rgba(127, 119, 221, 0.75),
+            6px 6px 0 rgba(127, 119, 221, 0.7),
+            7px 7px 0 rgba(127, 119, 221, 0.65),
+            8px 8px 0 rgba(127, 119, 221, 0.6),
+            9px 9px 0 rgba(127, 119, 221, 0.55),
+            10px 10px 0 rgba(127, 119, 221, 0.5),
+            11px 11px 0 rgba(127, 119, 221, 0.45),
+            12px 12px 0 rgba(127, 119, 221, 0.4),
+            13px 13px 0 rgba(127, 119, 221, 0.35),
+            14px 14px 0 rgba(127, 119, 221, 0.3),
+            15px 15px 0 rgba(127, 119, 221, 0.25),
+            16px 16px 0 rgba(127, 119, 221, 0.2),
+            18px 18px 0 rgba(127, 119, 221, 0.15),
+            20px 20px 0 rgba(127, 119, 221, 0.1),
+            22px 22px 40px rgba(0,0,0,0.9);
         }
         .hero-title span { 
           color: #7F77DD;
@@ -769,9 +715,18 @@ export default function Portfolio() {
             5px 5px 0 #1a0f4f,
             6px 6px 0 #0a052f,
             7px 7px 0 #000,
-            8px 8px 15px rgba(127, 119, 221, 0.9),
-            10px 10px 25px rgba(127, 119, 221, 0.6);
+            8px 8px 0 #534AB7,
+            9px 9px 0 #3a2f8f,
+            10px 10px 0 #2a1f6f,
+            11px 11px 0 #1a0f4f,
+            12px 12px 0 #0a052f,
+            13px 13px 0 #000,
+            14px 14px 20px rgba(127, 119, 221, 0.9),
+            16px 16px 30px rgba(127, 119, 221, 0.7),
+            18px 18px 40px rgba(127, 119, 221, 0.5);
         }
+
+        /* ===== 3D BIO TEXT ===== */
         .bio-text {
           font-family: 'VT323', monospace; font-size: clamp(1.4rem, 3vw, 1.8rem);
           color: #a1a1aa; line-height: 1.4; max-width: 600px; margin-bottom: 3rem;
@@ -781,7 +736,10 @@ export default function Portfolio() {
             1px 1px 0 #000,
             2px 2px 0 #1a1a2e,
             3px 3px 0 #000,
-            4px 4px 10px rgba(0,0,0,0.6);
+            4px 4px 0 rgba(0,0,0,0.6),
+            5px 5px 0 rgba(0,0,0,0.5),
+            6px 6px 0 rgba(0,0,0,0.4),
+            7px 7px 15px rgba(0,0,0,0.7);
         }
         .typing-cursor {
           display: inline-block; width: 12px; height: 1.2em; background: #7F77DD;
@@ -790,23 +748,33 @@ export default function Portfolio() {
             2px 2px 0 #000,
             3px 3px 0 #534AB7,
             4px 4px 0 #3a2f8f,
-            5px 5px 10px rgba(0,0,0,0.6);
+            5px 5px 0 #2a1f6f,
+            6px 6px 0 #1a0f4f,
+            7px 7px 0 #0a052f,
+            8px 8px 0 #000,
+            10px 10px 15px rgba(0,0,0,0.7);
         }
         @keyframes blink { 50% { opacity: 0; } }
+
         .btn-group { 
           display: flex; gap: 1.5rem; flex-wrap: wrap;
           transform: translateZ(40px);
         }
+
+        /* TRUE 3D BUTTONS */
         .pixel-btn {
           position: relative; display: inline-flex; align-items: center; gap: 0.75rem;
           padding: 1rem 1.5rem; background: #ffffff; color: #0d0d12;
           border: none; font-family: 'Press Start 2P', cursive; font-size: 0.65rem;
-          cursor: ${isTouchDevice ? 'pointer' : 'none'};
+          cursor: pointer; 
           transition: transform 0.1s steps(3, end);
           text-decoration: none;
           text-shadow:
             1px 1px 0 #ccc,
-            2px 2px 0 #aaa;
+            2px 2px 0 #aaa,
+            3px 3px 0 #888,
+            4px 4px 0 #666,
+            5px 5px 8px rgba(0,0,0,0.5);
           box-shadow: 
             3px 0 0 0 #ffffff, -3px 0 0 0 #ffffff,
             0 3px 0 0 #ffffff, 0 -3px 0 0 #ffffff,
@@ -835,7 +803,11 @@ export default function Portfolio() {
           text-shadow:
             1px 1px 0 #000,
             2px 2px 0 #555,
-            3px 3px 0 #333;
+            3px 3px 0 #333,
+            4px 4px 0 #222,
+            5px 5px 0 #111,
+            6px 6px 0 #000,
+            8px 8px 15px rgba(0,0,0,0.7);
           box-shadow: 
             3px 0 0 0 #ffffff, -3px 0 0 0 #ffffff,
             0 3px 0 0 #ffffff, 0 -3px 0 0 #ffffff,
@@ -851,9 +823,10 @@ export default function Portfolio() {
           background: rgba(255,255,255,0.1);
           transform: translate(-3px, -3px) translateZ(10px);
         }
+
+        /* PROJECTS */
         .projects-header {
           display: flex; align-items: center; justify-content: space-between; margin-bottom: 3rem;
-          flex-wrap: wrap; gap: 1rem;
         }
         .section-title {
           font-family: 'Press Start 2P', cursive; font-size: 1.2rem;
@@ -861,19 +834,28 @@ export default function Portfolio() {
             1px 1px 0 #000,
             2px 2px 0 #1a1a2e,
             3px 3px 0 #000,
-            4px 4px 0 rgba(127, 119, 221, 0.6),
-            5px 5px 0 rgba(127, 119, 221, 0.5),
-            6px 6px 0 rgba(127, 119, 221, 0.4),
-            7px 7px 0 rgba(127, 119, 221, 0.3),
-            8px 8px 25px rgba(0,0,0,0.9);
+            4px 4px 0 rgba(127, 119, 221, 0.7),
+            5px 5px 0 rgba(127, 119, 221, 0.65),
+            6px 6px 0 rgba(127, 119, 221, 0.6),
+            7px 7px 0 rgba(127, 119, 221, 0.55),
+            8px 8px 0 rgba(127, 119, 221, 0.5),
+            9px 9px 0 rgba(127, 119, 221, 0.45),
+            10px 10px 0 rgba(127, 119, 221, 0.4),
+            11px 11px 0 rgba(127, 119, 221, 0.35),
+            12px 12px 0 rgba(127, 119, 221, 0.3),
+            14px 14px 30px rgba(0,0,0,0.9);
         }
         .back-btn {
           display: inline-flex; align-items: center; gap: 0.5rem; background: transparent;
           border: 3px solid #ffffff; color: #ffffff; padding: 0.75rem 1rem;
-          font-family: 'Press Start 2P', cursive; font-size: 0.5rem; cursor: ${isTouchDevice ? 'pointer' : 'none'};
+          font-family: 'Press Start 2P', cursive; font-size: 0.5rem; cursor: pointer;
           text-shadow:
             1px 1px 0 #000,
-            2px 2px 0 #555;
+            2px 2px 0 #555,
+            3px 3px 0 #333,
+            4px 4px 0 #222,
+            5px 5px 0 #000,
+            6px 6px 10px rgba(0,0,0,0.7);
           box-shadow: 
             3px 3px 0 0 #aaa,
             6px 6px 0 0 #888,
@@ -883,6 +865,7 @@ export default function Portfolio() {
         }
         .back-btn:hover { transform: translate(-2px, -2px); }
         .back-btn:active { transform: translate(6px, 6px); box-shadow: 0 0 0 0 #000; }
+
         .projects-grid {
           display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 2.5rem;
           perspective: 1000px;
@@ -917,7 +900,10 @@ export default function Portfolio() {
             1px 1px 0 #000,
             2px 2px 0 #1a1a2e,
             3px 3px 0 #000,
-            4px 4px 8px rgba(0,0,0,0.7);
+            4px 4px 0 rgba(0,0,0,0.6),
+            5px 5px 0 rgba(0,0,0,0.5),
+            6px 6px 0 rgba(0,0,0,0.4),
+            7px 7px 12px rgba(0,0,0,0.7);
         }
         .project-desc {
           font-family: 'VT323', monospace; font-size: 1.3rem; color: #a1a1aa;
@@ -925,7 +911,9 @@ export default function Portfolio() {
           transform: translateZ(10px);
           text-shadow: 
             1px 1px 0 #000,
-            2px 2px 5px rgba(0,0,0,0.5);
+            2px 2px 0 rgba(0,0,0,0.5),
+            3px 3px 0 rgba(0,0,0,0.4),
+            4px 4px 8px rgba(0,0,0,0.6);
         }
         .project-meta {
           display: flex; align-items: center; gap: 1.5rem; font-family: 'VT323', monospace;
@@ -933,14 +921,13 @@ export default function Portfolio() {
           transform: translateZ(15px);
           text-shadow: 
             1px 1px 0 #000,
-            2px 2px 4px rgba(0,0,0,0.5);
+            2px 2px 0 rgba(0,0,0,0.5),
+            3px 3px 6px rgba(0,0,0,0.6);
         }
         .meta-item { display: flex; align-items: center; gap: 0.5rem; }
         .lang-dot { 
           width: 10px; height: 10px; 
-          box-shadow: 
-            2px 2px 0 #000,
-            3px 3px 5px rgba(0,0,0,0.6);
+          box-shadow: 2px 2px 0 #000, 3px 3px 0 rgba(0,0,0,0.5);
         }
         .project-link {
           display: inline-flex; align-items: center; gap: 0.5rem; color: #7F77DD;
@@ -951,9 +938,12 @@ export default function Portfolio() {
             1px 1px 0 #000,
             2px 2px 0 #534AB7,
             3px 3px 0 #3a2f8f,
-            4px 4px 8px rgba(127, 119, 221, 0.7);
+            4px 4px 0 #2a1f6f,
+            5px 5px 0 #1a0f4f,
+            6px 6px 12px rgba(127, 119, 221, 0.7);
         }
         .project-link:hover { gap: 0.75rem; color: #9d97e6; transform: translateZ(35px); }
+
         .loading-container {
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           min-height: 300px; gap: 1.5rem;
@@ -971,8 +961,12 @@ export default function Portfolio() {
           font-family: 'VT323', monospace; font-size: 1.5rem; color: #71717a;
           text-shadow: 
             1px 1px 0 #000,
-            2px 2px 5px rgba(0,0,0,0.6);
+            2px 2px 0 rgba(0,0,0,0.6),
+            3px 3px 0 rgba(0,0,0,0.5),
+            4px 4px 8px rgba(0,0,0,0.7);
         }
+
+        /* CATS */
         .cat-container {
           position: fixed; z-index: 50; pointer-events: none;
           filter: 
@@ -1029,10 +1023,11 @@ export default function Portfolio() {
         .cat-style-2 .right-leg-cat2 { animation: limb2B 0.15s linear infinite reverse; }
         @keyframes limb2A { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes limb2B { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
+
+        /* ===== PIXELATED TERMINAL ===== */
         .terminal-widget {
           animation: terminalAppear 0.3s steps(6, end);
           font-family: 'VT323', monospace;
-          max-width: calc(100vw - 40px);
         }
         .terminal-glitch {
           animation: terminalGlitch 0.15s steps(5, end);
@@ -1051,7 +1046,7 @@ export default function Portfolio() {
         }
         .terminal-window {
           width: 520px;
-          max-width: calc(100vw - 40px);
+          max-width: 95vw;
           background: #000000;
           border: 4px solid #7F77DD;
           position: relative;
@@ -1090,17 +1085,15 @@ export default function Portfolio() {
           user-select: none;
           position: relative;
           z-index: 2;
-          touch-action: none;
         }
         .terminal-header:active { cursor: grabbing; }
         .terminal-dots { display: flex; gap: 6px; }
         .dot {
           width: 14px; height: 14px;
-          cursor: ${isTouchDevice ? 'pointer' : 'none'};
+          cursor: pointer;
           transition: all 0.1s steps(2, end);
           border: 2px solid #000;
           box-shadow: 2px 2px 0 0 rgba(0,0,0,0.5);
-          display: inline-block;
         }
         .dot:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 0 rgba(0,0,0,0.5); }
         .dot:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 rgba(0,0,0,0.5); }
@@ -1112,12 +1105,17 @@ export default function Portfolio() {
           font-size: 0.55rem;
           color: #7F77DD;
           letter-spacing: 1px;
-          text-shadow: 2px 2px 0 #000;
+          text-shadow: 
+            1px 1px 0 #000,
+            2px 2px 0 #534AB7,
+            3px 3px 0 #3a2f8f,
+            4px 4px 0 #2a1f6f,
+            5px 5px 8px rgba(0,0,0,0.7);
         }
         .terminal-body {
           padding: 1rem;
           min-height: 300px;
-          max-height: 60vh;
+          max-height: 500px;
           overflow-y: auto;
           color: #e4e4e7;
           font-family: 'VT323', monospace;
@@ -1148,26 +1146,30 @@ export default function Portfolio() {
           text-shadow: 
             1px 1px 0 #000,
             2px 2px 0 #0F6E56,
-            3px 3px 5px rgba(0,0,0,0.7);
+            3px 3px 0 #084535,
+            4px 4px 0 #000,
+            5px 5px 10px rgba(0,0,0,0.7);
         }
         .term-cmd { 
           color: #ffffff; 
           text-shadow: 
             1px 1px 0 #000,
-            2px 2px 4px rgba(0,0,0,0.6);
+            2px 2px 0 rgba(0,0,0,0.6),
+            3px 3px 6px rgba(0,0,0,0.7);
         }
         .term-muted { 
           color: #666; 
           text-shadow: 
             1px 1px 0 #000,
-            2px 2px 3px rgba(0,0,0,0.5);
+            2px 2px 4px rgba(0,0,0,0.6);
         }
         .term-critical-line {
           animation: criticalPulse 0.4s steps(3, end) infinite;
           text-shadow: 
             0 0 8px currentColor,
             1px 1px 0 #000,
-            2px 2px 5px rgba(0,0,0,0.8);
+            2px 2px 0 rgba(0,0,0,0.7),
+            3px 3px 8px rgba(0,0,0,0.8);
         }
         @keyframes criticalPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .term-cursor-block {
@@ -1179,7 +1181,8 @@ export default function Portfolio() {
           margin-left: 2px;
           box-shadow: 
             2px 2px 0 #000,
-            3px 3px 5px rgba(0,0,0,0.6);
+            3px 3px 0 rgba(0,0,0,0.6),
+            4px 4px 8px rgba(0,0,0,0.7);
         }
         @keyframes cursorBlink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
         .term-joke { 
@@ -1188,7 +1191,9 @@ export default function Portfolio() {
           text-shadow: 
             1px 1px 0 #000,
             2px 2px 0 #0F6E56,
-            3px 3px 5px rgba(0,0,0,0.7);
+            3px 3px 0 #084535,
+            4px 4px 0 #000,
+            5px 5px 10px rgba(0,0,0,0.7);
         }
         .cookie-display {
           display: flex; justify-content: center; align-items: center;
@@ -1209,14 +1214,17 @@ export default function Portfolio() {
           border: 3px solid #1D9E75;
           font-family: 'Press Start 2P', cursive;
           font-size: 0.6rem;
-          cursor: ${isTouchDevice ? 'pointer' : 'none'};
+          cursor: pointer;
           transition: all 0.1s steps(2, end);
           width: 100%;
           text-transform: uppercase;
           letter-spacing: 1px;
           text-shadow: 
             1px 1px 0 #000,
-            2px 2px 0 #0F6E56;
+            2px 2px 0 #0F6E56,
+            3px 3px 0 #084535,
+            4px 4px 0 #000,
+            5px 5px 10px rgba(0,0,0,0.7);
           box-shadow: 
             3px 3px 0 0 #0F6E56,
             6px 6px 0 0 #000;
@@ -1232,6 +1240,8 @@ export default function Portfolio() {
           transform: translate(4px, 4px);
           box-shadow: 0 0 0 0 #000;
         }
+
+        /* 3D TOGGLE BUTTON */
         .terminal-toggle-btn {
           position: fixed;
           bottom: 2rem; right: 2rem;
@@ -1239,10 +1249,14 @@ export default function Portfolio() {
           background: #7F77DD;
           border: 3px solid #ffffff;
           display: flex; align-items: center; justify-content: center;
-          cursor: ${isTouchDevice ? 'pointer' : 'none'};
-          z-index: 100;
+          cursor: pointer; z-index: 100;
           transition: all 0.1s steps(3, end);
           color: #ffffff;
+          text-shadow:
+            1px 1px 0 #000,
+            2px 2px 0 #534AB7,
+            3px 3px 0 #3a2f8f,
+            4px 4px 8px rgba(0,0,0,0.7);
           box-shadow: 
             3px 0 0 0 #fff, -3px 0 0 0 #fff,
             0 3px 0 0 #fff, 0 -3px 0 0 #fff,
@@ -1250,11 +1264,6 @@ export default function Portfolio() {
             6px 6px 0 0 #3a2f8f,
             9px 9px 0 0 #000,
             12px 12px 20px 0 rgba(0,0,0,0.6);
-          animation: togglePulse 3s ease-in-out infinite;
-        }
-        @keyframes togglePulse {
-          0%, 100% { box-shadow: 3px 0 0 0 #fff, -3px 0 0 0 #fff, 0 3px 0 0 #fff, 0 -3px 0 0 #fff, 3px 3px 0 0 #534AB7, 6px 6px 0 0 #3a2f8f, 9px 9px 0 0 #000, 12px 12px 20px 0 rgba(0,0,0,0.6); }
-          50% { box-shadow: 3px 0 0 0 #fff, -3px 0 0 0 #fff, 0 3px 0 0 #fff, 0 -3px 0 0 #fff, 3px 3px 0 0 #534AB7, 6px 6px 0 0 #3a2f8f, 9px 9px 0 0 #000, 12px 12px 20px 0 rgba(0,0,0,0.6), 0 0 25px rgba(127, 119, 221, 0.7); }
         }
         .terminal-toggle-btn:hover {
           transform: translate(-3px, -3px);
@@ -1274,21 +1283,14 @@ export default function Portfolio() {
             0 3px 0 0 #fff, 0 -3px 0 0 #fff,
             3px 3px 0 0 #000;
         }
-        .touch-device a,
-        .touch-device button {
-          cursor: pointer;
-        }
-        .touch-device .custom-cursor {
-          display: none;
-        }
+
         @media (max-width: 600px) {
           .pixel-card { padding: 1.5rem; }
           .btn-group { flex-direction: column; width: 100%; }
           .pixel-btn { width: 100%; justify-content: center; }
           .projects-grid { grid-template-columns: 1fr; }
-          .terminal-window { width: calc(100vw - 40px); }
+          .terminal-window { width: 90vw; }
           .terminal-toggle-btn { bottom: 1rem; right: 1rem; }
-          .cat-container { display: none; }
         }
       `}</style>
 
@@ -1314,12 +1316,7 @@ export default function Portfolio() {
 
       <div className="pixel-grid" />
 
-      {!isTouchDevice && (
-        <div
-          ref={cursorRef}
-          className={`custom-cursor ${cursorVisible ? 'visible' : ''}`}
-        />
-      )}
+      <div ref={cursorRef} className="custom-cursor" />
 
       {view === 'home' && catPositions.map((cat, idx) => (
         <div
@@ -1348,8 +1345,8 @@ export default function Portfolio() {
                 <button
                   className="pixel-btn"
                   onClick={() => handleViewChange('projects')}
-                  onMouseEnter={handleHoverEnter}
-                  onMouseLeave={handleHoverLeave}
+                  onMouseEnter={() => cursorRef.current?.classList.add('hovering')}
+                  onMouseLeave={() => cursorRef.current?.classList.remove('hovering')}
                 >
                   VIEW PROJECTS <Icons.ArrowRight />
                 </button>
@@ -1358,8 +1355,8 @@ export default function Portfolio() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="pixel-btn pixel-btn-secondary"
-                  onMouseEnter={handleHoverEnter}
-                  onMouseLeave={handleHoverLeave}
+                  onMouseEnter={() => cursorRef.current?.classList.add('hovering')}
+                  onMouseLeave={() => cursorRef.current?.classList.remove('hovering')}
                 >
                   <Icons.Github /> GITHUB
                 </a>
@@ -1374,8 +1371,8 @@ export default function Portfolio() {
               <button
                 className="back-btn"
                 onClick={() => handleViewChange('home')}
-                onMouseEnter={handleHoverEnter}
-                onMouseLeave={handleHoverLeave}
+                onMouseEnter={() => cursorRef.current?.classList.add('hovering')}
+                onMouseLeave={() => cursorRef.current?.classList.remove('hovering')}
               >
                 <Icons.ArrowLeft /> BACK
               </button>
@@ -1398,6 +1395,8 @@ export default function Portfolio() {
                     className="project-card"
                     style={{ animationDelay: `${index * 0.1}s` }}
                     intensity={8}
+                    onMouseEnter={() => cursorRef.current?.classList.add('hovering')}
+                    onMouseLeave={() => cursorRef.current?.classList.remove('hovering')}
                   >
                     <h3 className="project-title">{project.title}</h3>
                     <p className="project-desc">{project.desc}</p>
@@ -1410,14 +1409,7 @@ export default function Portfolio() {
                         <Icons.Star /> {project.stars}
                       </span>
                     </div>
-                    <a
-                      href={project.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="project-link"
-                      onMouseEnter={handleHoverEnter}
-                      onMouseLeave={handleHoverLeave}
-                    >
+                    <a href={project.url} target="_blank" rel="noopener noreferrer" className="project-link">
                       VIEW REPO <Icons.ArrowRight />
                     </a>
                   </TiltCard>
@@ -1431,8 +1423,8 @@ export default function Portfolio() {
       <button
         className="terminal-toggle-btn"
         onClick={() => setShowTerminal(prev => !prev)}
-        onMouseEnter={handleHoverEnter}
-        onMouseLeave={handleHoverLeave}
+        onMouseEnter={() => cursorRef.current?.classList.add('hovering')}
+        onMouseLeave={() => cursorRef.current?.classList.remove('hovering')}
         aria-label="Open terminal easter egg"
       >
         <Icons.Terminal />
