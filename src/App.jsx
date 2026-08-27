@@ -90,7 +90,7 @@ const PixelCookie = ({ size = 96 }) => (
   </svg>
 );
 
-const TiltCard = ({ children, className, style, intensity = 12 }) => {
+const TiltCard = ({ children, className, style, intensity = 12, onMouseEnter, onMouseLeave }) => {
   const ref = useRef(null);
   const handleMouseMove = (e) => {
     if (!ref.current) return;
@@ -106,9 +106,10 @@ const TiltCard = ({ children, className, style, intensity = 12 }) => {
   const handleMouseLeave = () => {
     if (!ref.current) return;
     ref.current.style.transform = `perspective(800px) rotateX(0deg) rotateY(0deg) translateZ(0px)`;
+    onMouseLeave && onMouseLeave();
   };
   return (
-    <div ref={ref} className={className} style={style} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+    <div ref={ref} className={className} style={style} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} onMouseEnter={onMouseEnter}>
       {children}
     </div>
   );
@@ -245,7 +246,6 @@ const TerminalWidget = ({ onClose }) => {
     };
   }, [clampPosition]);
 
-  // Keep terminal in bounds on window resize
   useEffect(() => {
     const handleResize = () => {
       setTerminalPos(prev => clampPosition(prev.x, prev.y));
@@ -403,7 +403,6 @@ export default function Portfolio() {
   ];
 
   useEffect(() => {
-    // Detect touch device
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     setIsTouchDevice(isTouch);
 
@@ -436,7 +435,6 @@ export default function Portfolio() {
     return () => clearInterval(typeInterval);
   }, []);
 
-  // Smooth cursor with lerp
   useEffect(() => {
     if (isTouchDevice) return;
 
@@ -466,13 +464,8 @@ export default function Portfolio() {
       }
     };
 
-    const handleMouseLeave = () => {
-      setCursorVisible(false);
-    };
-
-    const handleMouseEnter = () => {
-      setCursorVisible(true);
-    };
+    const handleMouseLeave = () => setCursorVisible(false);
+    const handleMouseEnter = () => setCursorVisible(true);
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseleave', handleMouseLeave);
@@ -484,7 +477,7 @@ export default function Portfolio() {
       document.removeEventListener('mouseleave', handleMouseLeave);
       document.removeEventListener('mouseenter', handleMouseEnter);
     };
-  }, [isTouchDevice]);
+  }, [isTouchDevice, cursorVisible]);
 
   const handleViewChange = useCallback((newView) => {
     if (newView === view) return;
@@ -531,6 +524,7 @@ export default function Portfolio() {
   return (
     <div
       ref={containerRef}
+      className={isTouchDevice ? 'touch-device' : ''}
       style={{
         background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d12 70%, #050508 100%)',
         color: '#ffffff',
@@ -551,7 +545,6 @@ export default function Portfolio() {
         body { background: #0d0d12; color: #ffffff; overflow-x: hidden; -webkit-font-smoothing: none; }
         a, button { cursor: ${isTouchDevice ? 'pointer' : 'none'}; }
 
-        /* ===== DEEP 3D VOXEL BACKGROUND ===== */
         .voxel-bg {
           position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
           transform-style: preserve-3d;
@@ -648,8 +641,6 @@ export default function Portfolio() {
               rotateZ(5deg);
           }
         }
-
-        /* 3D GRID FLOOR */
         .pixel-grid {
           position: fixed; 
           top: 50%; left: 0; 
@@ -672,57 +663,29 @@ export default function Portfolio() {
           0% { background-position: 0 0; }
           100% { background-position: 0 60px; }
         }
-
-        /* CUSTOM CURSOR */
         .custom-cursor {
-          position: fixed; 
+          position: fixed;
           top: 0;
           left: 0;
-          width: 24px; height: 24px; 
+          width: 24px;
+          height: 24px;
           background: #fff;
-          pointer-events: none; 
+          pointer-events: none;
           z-index: 99999;
           transform: translate3d(-100px, -100px, 0);
           will-change: transform;
-          transition: width 0.15s, height 0.15s, background 0.15s;
           clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 50%, 25% 50%, 25% 25%, 75% 25%, 75% 75%, 25% 75%, 25% 50%, 0 50%);
           box-shadow: 0 0 12px rgba(255,255,255,0.6);
           opacity: 0;
           transition: width 0.15s, height 0.15s, background 0.15s, opacity 0.2s;
         }
         .custom-cursor.visible { opacity: 1; }
-        .custom-cursor.hovering { 
-          width: 40px; 
-          height: 40px; 
+        .custom-cursor.hovering {
+          width: 40px;
+          height: 40px;
           background: #7F77DD;
           box-shadow: 0 0 20px rgba(127, 119, 221, 0.8);
         }
-
-        /* VIEW CONTAINER */
-        .view-container {
-          position: relative; z-index: 10; width: 100%; min-height: 100vh;
-          display: flex; align-items: center; justify-content: center; padding: 2rem;
-          perspective: 1500px;
-          transform-style: preserve-3d;
-        }
-        .view-content {
-          width: 100%; max-width: 900px; transform-style: preserve-3d;
-          transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .view-content.exiting { 
-          opacity: 0; 
-          transform: perspective(1000px) rotateY(-25deg) translateZ(-200px) translateX(-100px); 
-        }
-        .view-content.entering { 
-          opacity: 0; 
-          transform: perspective(1000px) rotateY(25deg) translateZ(-200px) translateX(100px); 
-        }
-        .view-content.active { 
-          opacity: 1; 
-          transform: perspective(1000px) rotateY(0deg) translateZ(0); 
-        }
-
-        /* 3D PIXEL CARD */
         .pixel-card {
           background: #1a1a24;
           border: 4px solid #ffffff;
@@ -757,7 +720,6 @@ export default function Portfolio() {
           background: linear-gradient(to bottom, rgba(255,255,255,0.3), transparent);
           pointer-events: none;
         }
-
         .hero-label {
           font-family: 'Press Start 2P', cursive; font-size: 0.7rem; color: #7F77DD;
           letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2rem;
@@ -780,7 +742,6 @@ export default function Portfolio() {
             5px 5px 0 #2a1f6f,
             6px 6px 10px rgba(0,0,0,0.6);
         }
-
         .hero-title {
           font-family: 'Press Start 2P', cursive;
           font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.4; margin-bottom: 2rem;
@@ -811,7 +772,6 @@ export default function Portfolio() {
             8px 8px 15px rgba(127, 119, 221, 0.9),
             10px 10px 25px rgba(127, 119, 221, 0.6);
         }
-
         .bio-text {
           font-family: 'VT323', monospace; font-size: clamp(1.4rem, 3vw, 1.8rem);
           color: #a1a1aa; line-height: 1.4; max-width: 600px; margin-bottom: 3rem;
@@ -833,13 +793,10 @@ export default function Portfolio() {
             5px 5px 10px rgba(0,0,0,0.6);
         }
         @keyframes blink { 50% { opacity: 0; } }
-
         .btn-group { 
           display: flex; gap: 1.5rem; flex-wrap: wrap;
           transform: translateZ(40px);
         }
-
-        /* TRUE 3D BUTTONS */
         .pixel-btn {
           position: relative; display: inline-flex; align-items: center; gap: 0.75rem;
           padding: 1rem 1.5rem; background: #ffffff; color: #0d0d12;
@@ -894,8 +851,6 @@ export default function Portfolio() {
           background: rgba(255,255,255,0.1);
           transform: translate(-3px, -3px) translateZ(10px);
         }
-
-        /* PROJECTS */
         .projects-header {
           display: flex; align-items: center; justify-content: space-between; margin-bottom: 3rem;
           flex-wrap: wrap; gap: 1rem;
@@ -928,7 +883,6 @@ export default function Portfolio() {
         }
         .back-btn:hover { transform: translate(-2px, -2px); }
         .back-btn:active { transform: translate(6px, 6px); box-shadow: 0 0 0 0 #000; }
-
         .projects-grid {
           display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 2.5rem;
           perspective: 1000px;
@@ -1000,7 +954,6 @@ export default function Portfolio() {
             4px 4px 8px rgba(127, 119, 221, 0.7);
         }
         .project-link:hover { gap: 0.75rem; color: #9d97e6; transform: translateZ(35px); }
-
         .loading-container {
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           min-height: 300px; gap: 1.5rem;
@@ -1020,8 +973,6 @@ export default function Portfolio() {
             1px 1px 0 #000,
             2px 2px 5px rgba(0,0,0,0.6);
         }
-
-        /* CATS */
         .cat-container {
           position: fixed; z-index: 50; pointer-events: none;
           filter: 
@@ -1078,8 +1029,6 @@ export default function Portfolio() {
         .cat-style-2 .right-leg-cat2 { animation: limb2B 0.15s linear infinite reverse; }
         @keyframes limb2A { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes limb2B { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
-
-        /* ===== PIXELATED TERMINAL ===== */
         .terminal-widget {
           animation: terminalAppear 0.3s steps(6, end);
           font-family: 'VT323', monospace;
@@ -1283,8 +1232,6 @@ export default function Portfolio() {
           transform: translate(4px, 4px);
           box-shadow: 0 0 0 0 #000;
         }
-
-        /* 3D TOGGLE BUTTON */
         .terminal-toggle-btn {
           position: fixed;
           bottom: 2rem; right: 2rem;
@@ -1327,7 +1274,13 @@ export default function Portfolio() {
             0 3px 0 0 #fff, 0 -3px 0 0 #fff,
             3px 3px 0 0 #000;
         }
-
+        .touch-device a,
+        .touch-device button {
+          cursor: pointer;
+        }
+        .touch-device .custom-cursor {
+          display: none;
+        }
         @media (max-width: 600px) {
           .pixel-card { padding: 1.5rem; }
           .btn-group { flex-direction: column; width: 100%; }
@@ -1339,11 +1292,10 @@ export default function Portfolio() {
         }
       `}</style>
 
-      {/* 3D VOXEL BACKGROUND */}
       <div className="voxel-bg">
         {voxels.map((voxel) => (
           <div key={voxel.id} className="voxel" style={{
-            left: `${voxel.x}%`, 
+            left: `${voxel.x}%`,
             top: `${voxel.y}%`,
             '--size': `${voxel.size}px`,
             '--color': voxel.color,
@@ -1360,21 +1312,18 @@ export default function Portfolio() {
         ))}
       </div>
 
-      {/* 3D PERSPECTIVE GRID FLOOR */}
       <div className="pixel-grid" />
 
-      {/* CUSTOM CURSOR - hidden on touch devices */}
       {!isTouchDevice && (
-        <div 
-          ref={cursorRef} 
-          className={`custom-cursor ${cursorVisible ? 'visible' : ''}`} 
+        <div
+          ref={cursorRef}
+          className={`custom-cursor ${cursorVisible ? 'visible' : ''}`}
         />
       )}
 
-      {/* CATS */}
       {view === 'home' && catPositions.map((cat, idx) => (
-        <div 
-          key={cat.id} 
+        <div
+          key={cat.id}
           className={`cat-container cat-style-${idx}`}
           style={{ left: cat.x, top: cat.y }}
         >
@@ -1396,7 +1345,7 @@ export default function Portfolio() {
                 <span className="typing-cursor"></span>
               </div>
               <div className="btn-group">
-                <button 
+                <button
                   className="pixel-btn"
                   onClick={() => handleViewChange('projects')}
                   onMouseEnter={handleHoverEnter}
@@ -1404,10 +1353,10 @@ export default function Portfolio() {
                 >
                   VIEW PROJECTS <Icons.ArrowRight />
                 </button>
-                <a 
-                  href="https://github.com/STEVEALEX-source" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                <a
+                  href="https://github.com/STEVEALEX-source"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="pixel-btn pixel-btn-secondary"
                   onMouseEnter={handleHoverEnter}
                   onMouseLeave={handleHoverLeave}
@@ -1422,7 +1371,7 @@ export default function Portfolio() {
           <div className={`view-content ${isTransitioning ? 'entering' : 'active'}`}>
             <div className="projects-header">
               <h2 className="section-title">SELECTED WORK</h2>
-              <button 
+              <button
                 className="back-btn"
                 onClick={() => handleViewChange('home')}
                 onMouseEnter={handleHoverEnter}
@@ -1444,8 +1393,8 @@ export default function Portfolio() {
             ) : (
               <div className="projects-grid">
                 {projects.map((project, index) => (
-                  <TiltCard 
-                    key={project.id} 
+                  <TiltCard
+                    key={project.id}
                     className="project-card"
                     style={{ animationDelay: `${index * 0.1}s` }}
                     intensity={8}
@@ -1461,14 +1410,14 @@ export default function Portfolio() {
                         <Icons.Star /> {project.stars}
                       </span>
                     </div>
-                    <a 
-                      href={project.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
+                    <a
+                      href={project.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="project-link"
                       onMouseEnter={handleHoverEnter}
                       onMouseLeave={handleHoverLeave}
-                    >                                                             
+                    >
                       VIEW REPO <Icons.ArrowRight />
                     </a>
                   </TiltCard>
@@ -1479,7 +1428,7 @@ export default function Portfolio() {
         )}
       </div>
 
-      <button 
+      <button
         className="terminal-toggle-btn"
         onClick={() => setShowTerminal(prev => !prev)}
         onMouseEnter={handleHoverEnter}
@@ -1493,5 +1442,4 @@ export default function Portfolio() {
       )}
     </div>
   );
-}   
-      
+}
